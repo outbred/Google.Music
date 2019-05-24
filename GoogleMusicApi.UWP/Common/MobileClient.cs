@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
-using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Tasks;
 using GoogleMusicApi.UWP.Authentication;
 using GoogleMusicApi.UWP.Requests;
@@ -205,37 +204,36 @@ namespace GoogleMusicApi.UWP.Common
         /// <summary>
         /// Gets a list of <see cref="Playlist"/>'s associated to the account
         /// </summary>
-        /// <param name="numberOfResults">How many playlists you wish to receive</param>
         /// <returns>
         /// A DataSet of <see cref="Playlist"/>'s
         ///
         /// Future - TODO (Medium): Add Support for NextPageToken
         /// </returns>
-        public async Task<ResultList<Playlist>> ListPlaylistsAsync(int numberOfResults = 50)
+        public async Task<ResultList<Playlist>> ListPlaylistsAsync()
         {
             if (!CheckSession())
                 return null;
             var request = MakeRequest<PlaylistFeed>();
             var data = await request.GetAsync(new FeedRequest(Session)
             {
-                MaxResults = numberOfResults,
                 NewResultsExpected = false,
-                UpdatedMin = "-1"
+                UpdatedMin = Time.GetCurrentTimestamp(),
+                Refresh = true
+
             });
             return data;
         }
 
         /// <summary>
-        /// Gets a list of promoted <see cref="Track"/>'s
+        /// Gets a list of Thumbed Up Tracks <see cref="Track"/>'s
         /// </summary>
-        /// <param name="numberOfResults">How many playlists you wish to receive</param>
+        /// <param name="numberOfResults">How many Tracks you wish to receive</param>
         /// <returns>
         /// A DataSet of <see cref="Playlist"/>'s
-        /// Future - TODO (Low): Maybe Thumbs Up List?
         /// Future - TODO (Medium): Add Support for NextPageToken
         /// </returns>
 
-        public async Task<ResultList<Track>> ListPromotedTracksAsync(int numberOfResults = 1000)
+        public async Task<ResultList<Track>> ListThumbsUpTracksAsync(int numberOfResults = 1000)
         {
             if (!CheckSession())
                 return null;
@@ -244,6 +242,46 @@ namespace GoogleMusicApi.UWP.Common
             var data = await request.GetAsync(new ResultListRequest(Session)
             {
                 MaxResults = numberOfResults
+            });
+            return data;
+        }
+        /// <summary>
+        /// Gets a list of Top Charts <see cref="Track"/>'s
+        /// </summary>
+        /// <param name="numberOfResults">How many Tracks you wish to receive</param>
+        /// <returns>
+        /// A DataSet of <see cref="Playlist"/>'s
+        /// Future - TODO (Medium): Add Support for NextPageToken
+        /// </returns>
+
+        public async Task<ChartResponse> ListPromotedTracksAsync(int numberOfResults = 1000)
+        {
+            if (!CheckSession())
+                return null;
+
+            var request = MakeRequest<GetTopCharts>();
+            var data = await request.GetAsync(new GetRequest(Session)
+            {
+            });
+            return data;
+        }
+        /// <summary>
+        /// Gets a list of Top Charts Genres <see cref="Track"/>'s
+        /// </summary>
+        /// <param name="numberOfResults">How many Tracks you wish to receive</param>
+        /// <returns>
+        /// A DataSet of <see cref="Playlist"/>'s
+        /// Future - TODO (Medium): Add Support for NextPageToken
+        /// </returns>
+
+        public async Task<GetTopChartGenresResponse> ListPromotedGenresAsync(int numberOfResults = 1000)
+        {
+            if (!CheckSession())
+                return null;
+
+            var request = MakeRequest<GetTopChartGenres>();
+            var data = await request.GetAsync(new GetRequest(Session)
+            {
             });
             return data;
         }
@@ -283,27 +321,35 @@ namespace GoogleMusicApi.UWP.Common
             });
             return data;
         }
+
+        /// <summary>
+        /// Gets the <see cref="PlaylistEntry"/> from the internal Plentry Feed.
+        /// You must call <see cref="ListTracksFromPlaylist"/> before this method.
+        /// 
+        /// </summary>
+        /// <param name="playlist"></param>
+        /// <param name="track"></param>
+        /// <returns></returns>
+        public Plentry GetTrackPlaylistEntry(Playlist playlist, Track track)
+        {
+            return _plentry.Data.Items.FirstOrDefault(x => x.PlaylistId == playlist.Id && x.TrackId == track.StoreId);
+        }
+
         public async Task<List<Track>> ListTracksFromPlaylist(Playlist playlist)
         {
             if (!CheckSession() || playlist == null)
                 return null;
-            var request = MakeRequest<PlentryFeed>();
-            var data = await request.GetAsync(new FeedRequest(Session)
-            {
-                UpdatedMin = "-1",
-                NewResultsExpected = false
-            });
+            
             if (_plentry == null)
             {
-                _plentry = data;
-            }
-            else
-            {
-                foreach (var plentryItem in data.Data.Items)
+                var request = MakeRequest<PlentryFeed>();
+                var data = await request.GetAsync(new FeedRequest(Session)
                 {
-                    _plentry.Data.Items.Add(plentryItem);
-                }
-                _plentry.NextPageToken = data.NextPageToken;
+                    UpdatedMin = Time.GetCurrentTimestamp(),
+                    NewResultsExpected = false,
+                    Refresh = true,
+                });
+                _plentry = data;
             }
             _lastUpdatedPlentry = Time.GetCurrentTimestamp();
             return _plentry.Data.Items.Where(x => x.PlaylistId == playlist.Id).Select(x=> x.Track).ToList();
@@ -423,6 +469,31 @@ namespace GoogleMusicApi.UWP.Common
         #endregion Gets
 
         #region Other
+        /// <summary>
+        /// Ask if a <see cref="Playlist"/> is public
+        /// </summary>
+        /// <param name="playlist">The <see cref="Playlist"/> to check</param>
+        public async Task<bool> IsPlaylistSharedAsync(Playlist playlist)
+        {
+            if (!CheckSession() || playlist == null)
+                return false;
+            var request = MakeRequest<IsPlaylistShared>();
+            var data = await request.GetAsync(new IsPlaylistSharedRequest(playlist, Session));
+            return data.IsPlaylistShared;
+        }
+
+        /// <summary>
+        /// Updates a <see cref="Playlist"/>
+        /// </summary>
+        /// <param name="playlist">The <see cref="Playlist"/> to update</param>
+        public async Task<Playlist> UpdatePlaylistAsync(Playlist playlist)
+        {
+            if (!CheckSession() || playlist == null)
+                return null;
+            var request = MakeRequest<EditPlaylist>();
+            var data = await request.GetAsync(new EditPlaylistRequest(playlist, Session));
+            return data;
+        }
 
         /// <summary>
         /// Search for a <see cref="Track"/> / <see cref="Album"/> / <see cref="Artist"/> / <see cref="Station"/> / <see cref="Genre"/>
@@ -537,6 +608,25 @@ namespace GoogleMusicApi.UWP.Common
             });
             return data;
         }
+
+        public async Task<MutateResponse> RemoveSongsFromPlaylist(params Plentry[] trackPlaylistPairs)
+        {
+            if (!CheckSession())
+                return null;
+
+            var request = MakeRequest<MutatePlentries>();
+            var data = await request.GetAsync(new MutateRequest(Session)
+            {
+                Mutations = trackPlaylistPairs.Select(
+                    x => new Mutate
+                    {
+                        Delete = x.Id
+                    }).ToArray(),
+            });
+            _plentry.Data.Items.RemoveAll(x => trackPlaylistPairs.Any(c => c.Id == x.Id) || x.Deleted);
+            return data;
+        }
+
         public async Task<RecordRealTimeResponse> SetTrackRating(Structure.Enums.Rating rating, Track track)
         {
             return await SetTrackRating(new Tuple<Track, Structure.Enums.Rating>(track, rating));

@@ -9,5 +9,8 @@ namespace GoogleMusicApi.UWP.Structure
 
         [JsonProperty("tracks")]
         public Track[] Tracks { get; set; }
+
+        [JsonProperty("albums")]
+        public Album[] Albums { get; set; }
     }
 }

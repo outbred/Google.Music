@@ -1,8 +1,5 @@
-﻿using System;
-using System.Net.Http.Headers;
-using GoogleMusicApi.UWP.Sessions;
+﻿using GoogleMusicApi.UWP.Sessions;
 using GoogleMusicApi.UWP.Structure;
-using GoogleMusicApi.UWP.Structure.Mutations;
 using Newtonsoft.Json;
 
 namespace GoogleMusicApi.UWP.Requests
